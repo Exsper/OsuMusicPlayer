@@ -113,12 +113,16 @@ dotnet publish src\OsuMusicPlayer.App\OsuMusicPlayer.App.csproj -c Release -r wi
    常见安装路径），或 `文件 → 选择 osu! 目录…`。目录需要包含 `osu!.db`。
    谱面歌曲目录会从 `osu!<用户名>.cfg` 的 `BeatmapDirectory` 读取，默认是 `<osu!>\Songs`。
 2. **搜索**：在搜索框输入关键词，多个词用空格分隔（全部匹配）。`Ctrl+F` 聚焦搜索框。
-3. **播放**：双击列表中的曲目即可播放；当前播放队列就是当前显示的列表（搜索结果或播放列表）。
-4. **播放列表**：左下角按钮新建/重命名/删除；把中间列表里选中的曲目拖到左侧列表即可加入；
+3. **重新扫描 / 缓存**：第一次使用会完整扫描一次 `osu!.db`（几万首曲目约十几秒），
+   结果会缓存到 `library.bin`；之后启动直接读缓存（秒级）。
+   谱面库有更新、或你想立即刷新时按 `F5`（`文件 → 重新扫描音乐库（更新缓存）`）手动重扫；
+   也可以 `文件 → 删除音乐库缓存…`，让下次启动重新扫描。
+4. **播放**：双击列表中的曲目即可播放；当前播放队列就是当前显示的列表（搜索结果或播放列表）。
+5. **播放列表**：左下角按钮新建/重命名/删除；把中间列表里选中的曲目拖到左侧列表即可加入；
    右键菜单也可以“添加到播放列表”或收藏。
-5. **导入收藏夹**：`文件 → 导入 osu! 收藏夹`（读取 osu! 目录下的 `collection.db`），
+6. **导入收藏夹**：`文件 → 导入 osu! 收藏夹`（读取 osu! 目录下的 `collection.db`），
    或 `文件 → 从 collection.db 文件导入…`。
-6. **导出**：`文件 → 导出当前列表为 M3U8…`，或左下角“导出 M3U8”按钮。
+7. **导出**：`文件 → 导出当前列表为 M3U8…`，或左下角“导出 M3U8”按钮。
 
 ### 快捷键
 
@@ -142,6 +146,7 @@ dotnet publish src\OsuMusicPlayer.App\OsuMusicPlayer.App.csproj -c Release -r wi
 | --- | --- |
 | `%AppData%\OsuMusicPlayer\settings.json` | 界面与播放设置（osu! 目录、音量、播放模式、窗口位置等） |
 | `%AppData%\OsuMusicPlayer\playlists.json` | 自定义播放列表、收藏与收藏夹导入结果 |
+| `%AppData%\OsuMusicPlayer\library.bin` / `library.json` | 音乐库扫描缓存（曲目数据 + 头信息），用于下次启动秒开 |
 | `%AppData%\OsuMusicPlayer\durations.json` | 音频时长缓存 |
 | `%AppData%\OsuMusicPlayer\self-test-report.txt` | 最近一次自检报告 |
 | `%AppData%\OsuMusicPlayer\crash.log` | 未处理异常的记录 |
@@ -204,6 +209,10 @@ OsuMusicPlayer.exe --screenshot shot.png --osu-dir .testdata\sample-osu --data-d
 - **换了 osu! 目录后播放列表显示为空的条目？** 这些条目对应的谱面不在当前音乐库里。
   应用**不会**自动删除它们；确认不再需要时用 `播放列表 → 清理失效条目…` 手动清理，
   换回原来的 osu! 目录即可恢复显示。
+- **扫描时内存涨到几百 MB 甚至 1 GB？** 读 `osu!.db` 时会一次性产生几万个临时对象
+  （每张谱面、每条 timing point），扫描结束后这些对象就都是垃圾了。程序在扫描完成后会主动
+  做一次完整回收，内存立刻回落（30k 首曲目的音乐库本身只占约 60 MB）；如果在任务管理器里
+  看到内存过一阵才掉下来，那是 .NET GC 在按需回收，不是泄漏。
 - **没有声音 / 提示没有输出设备？** 检查系统默认播放设备；
   无声卡的环境下仍可正常浏览、搜索与管理播放列表。
 

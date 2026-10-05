@@ -16,7 +16,8 @@ public sealed partial class MainForm
 
     private readonly ToolStripMenuItem _selectOsuFolderItem = new("选择 osu! 目录…");
     private readonly ToolStripMenuItem _autoDetectItem = new("自动检测 osu! 目录");
-    private readonly ToolStripMenuItem _rescanItem = new("重新扫描音乐库\tF5");
+    private readonly ToolStripMenuItem _rescanItem = new("重新扫描音乐库（更新缓存）\tF5");
+    private readonly ToolStripMenuItem _clearLibraryCacheItem = new("删除音乐库缓存（下次启动重新扫描）");
     private readonly ToolStripMenuItem _importCollectionsItem = new("导入 osu! 收藏夹\tCtrl+I");
     private readonly ToolStripMenuItem _importCollectionFileItem = new("从 collection.db 文件导入…");
     private readonly ToolStripMenuItem _exportM3u8Item = new("导出当前列表为 M3U8…");
@@ -193,6 +194,7 @@ public sealed partial class MainForm
         _selectOsuFolderItem.Click += async (_, _) => await SelectOsuFolderAsync();
         _autoDetectItem.Click += (_, _) => AutoDetectOsuFolder();
         _rescanItem.Click += async (_, _) => await RescanAsync();
+        _clearLibraryCacheItem.Click += (_, _) => ClearLibraryCache();
         _importCollectionsItem.Click += (_, _) => ImportOsuCollections();
         _importCollectionFileItem.Click += (_, _) => ImportCollectionFile();
         _exportM3u8Item.Click += (_, _) => ExportCurrentListAsM3u8();
@@ -225,6 +227,7 @@ public sealed partial class MainForm
             _selectOsuFolderItem,
             _autoDetectItem,
             _rescanItem,
+            _clearLibraryCacheItem,
             new ToolStripSeparator(),
             _importCollectionsItem,
             _importCollectionFileItem,

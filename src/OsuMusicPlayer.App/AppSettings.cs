@@ -17,6 +17,9 @@ public static class AppPaths
 
     public static string DurationsFile => Path.Combine(DataDirectory, "durations.json");
 
+    /// <summary>音乐库扫描缓存（<c>library.json</c> 为头信息，<c>library.bin</c> 为曲目数据）。</summary>
+    public static string LibraryCacheFile => Path.Combine(DataDirectory, "library.bin");
+
     public static void EnsureCreated() => Directory.CreateDirectory(DataDirectory);
 
     private static string ResolveDataDirectory()

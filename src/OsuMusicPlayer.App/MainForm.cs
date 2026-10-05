@@ -17,6 +17,7 @@ public sealed partial class MainForm : Form
     private readonly SettingsStore _settingsStore;
     private readonly PlaylistStore _playlistStore;
     private readonly DurationCache _durationCache;
+    private readonly LibraryCache _libraryCache;
     private readonly CollectionImporter _collectionImporter;
     private readonly PlaybackController _playback;
 
@@ -47,6 +48,7 @@ public sealed partial class MainForm : Form
 
         _playlistStore = new PlaylistStore(AppPaths.PlaylistsFile);
         _durationCache = new DurationCache(AppPaths.DurationsFile);
+        _libraryCache = new LibraryCache(AppPaths.LibraryCacheFile);
         _collectionImporter = new CollectionImporter(_playlistStore);
 
         try
@@ -202,7 +204,8 @@ public sealed partial class MainForm : Form
 
         if (!string.IsNullOrWhiteSpace(_settings.OsuDirectory))
         {
-            await RescanAsync();
+            // 默认直接读音乐库缓存（秒级）；只有第一次使用或缓存失效才重新扫描谱面。
+            await LoadLibraryAsync();
         }
         else
         {
@@ -413,7 +416,7 @@ public sealed partial class MainForm : Form
             "Ctrl+T        在原文（Unicode）与罗马化写法之间切换标题 / 艺术家",
             "Ctrl+I        导入 osu! 收藏夹",
             "Ctrl+O        选择 osu! 目录",
-            "F5            重新扫描音乐库",
+            "F5            重新扫描音乐库（并更新缓存）",
             "双击列表       播放该曲目",
             "拖动曲目       拖到左侧播放列表即可加入");
 

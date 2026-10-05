@@ -64,8 +64,7 @@ public sealed partial class MainForm
         }
 
         _settings.OsuDirectory = found;
-        SetStatus($"已检测到 osu! 目录：{found}");
-        _ = RescanAsync();
+        _ = LoadLibraryAsync();
     }
 
     private async Task RescanAsync()
@@ -92,6 +91,16 @@ public sealed partial class MainForm
         _scanning = true;
         SetBusy(true, "正在读取 osu!.db …");
 
+        // 先松开旧音乐库：重新扫描时会立刻读到一整份 osu!.db（几万个临时对象），
+        // 若旧库仍被引用，两者会同时驻留，扫描峰值内存直接翻倍。
+        // 曲目列表也跟着清空（只在扫描期间，扫描失败会恢复）。
+        MusicLibrary previousLibrary = _library;
+        _library = MusicLibrary.Empty;
+        _visibleTracks = [];
+        _trackList.VirtualListSize = 0;
+        _trackList.Invalidate();
+        _resultLabel.Text = "正在扫描音乐库…";
+
         try
         {
             Progress<LibraryBuildProgress> progress = new(report => RunOnUi(() =>
@@ -102,32 +111,26 @@ public sealed partial class MainForm
 
             MusicLibrary library = await Task.Run(() => new MusicLibraryBuilder().Build(osuDirectory, progress));
 
-            _library = library;
-            _durationCache.ApplyTo(library.Tracks);
+            // 扫描产生的大量临时对象（osu!.db 的全部谱面、timing points、合并累加器，以及旧音乐库）
+            // 对 GC 来说都是垃圾，但它们只占当时存活对象的一小部分，GC 往往要等堆再涨几百 MB 才回收，
+            // 表现为任务管理器里内存先涨到几百 MB ~ 1 GB、过一阵又自己掉下来。
+            // 这里在新库已经装好之后主动完整回收一次（几十万 ~ 百万对象约几百毫秒），
+            // 把内存立刻还给系统；不放在扫描线程里，避免拉长扫描耗时。
+            LibraryScanMemory.ReleaseAfterScan();
 
-            // 这里刻意 **不** 自动清理播放列表中的失效条目：
-            // 一旦扫描的是另一个 osu! 目录（或音乐库暂时不完整），自动清理会静默删掉用户播放列表的内容。
-            // 现在只统计数量并提示，由用户通过“播放列表 → 清理失效条目…”显式确认后再清理。
-            int stale = CountStalePlaylistEntries(library);
+            ApplyLibrary(library);
 
-            RefreshPlaylistList();
-            ApplyFilter();
+            // 记下这次扫描结果，下次启动直接读缓存，不必重新遍历谱面。
+            bool cached = _libraryCache.Save(osuDirectory, library);
 
-            _libraryLabel.Text = $"曲目 {library.Tracks.Count} · 可播放 {library.Statistics.TracksWithAudio} · 缺失 {library.Statistics.TracksWithoutAudio}";
-
-            string summary = $"已导入 {library.Statistics.BeatmapCount} 张谱面，合并为 {library.Tracks.Count} 首曲目"
-                + $"（可播放 {library.Statistics.TracksWithAudio} 首，音频缺失 {library.Statistics.TracksWithoutAudio} 首）"
-                + $"，耗时 {library.Statistics.ScanDuration.TotalSeconds:0.0} 秒。";
-
-            if (stale > 0)
-            {
-                summary += $" 播放列表中还有 {stale} 条曲目不在当前音乐库里（可用“播放列表 → 清理失效条目…”清理）。";
-            }
-
-            SetStatus(summary);
+            SetStatus(BuildScanSummary(library) + (cached ? " 已缓存，下次启动可直接载入。" : " 缓存写入失败，下次启动仍需重新扫描。"));
         }
         catch (Exception ex) when (ex is OsuMusicPlayer.Core.OsuMusicPlayerException or IOException or UnauthorizedAccessException)
         {
+            // 扫描失败时保留上一次的音乐库与列表，不要把界面清空。
+            _library = previousLibrary;
+            RefreshPlaylistList();
+            ApplyFilter();
             ShowWarning("扫描失败", ex.Message);
             SetStatus("扫描失败：" + ex.Message);
         }
@@ -136,6 +139,81 @@ public sealed partial class MainForm
             _scanning = false;
             SetBusy(false, null);
         }
+    }
+
+    /// <summary>
+    /// 启动时载入音乐库：有可用缓存就直接读缓存（秒级），没有或失效才扫描；
+    /// <c>osu!.db</c> 更新过时先用旧缓存，并提示按 F5 重新扫描。
+    /// </summary>
+    private async Task LoadLibraryAsync()
+    {
+        string? osuDirectory = _settings.OsuDirectory;
+
+        if (string.IsNullOrWhiteSpace(osuDirectory) || !OsuPathLocator.IsStableInstall(osuDirectory))
+        {
+            SetStatus("尚未指定 osu! 目录：请使用“文件 → 选择 osu! 目录…”或“自动检测 osu! 目录”。");
+            return;
+        }
+
+        SetBusy(true, "正在载入音乐库缓存…");
+
+        LibraryCacheLoadResult cached;
+
+        try
+        {
+            cached = await Task.Run(() => _libraryCache.TryLoad(osuDirectory));
+        }
+        finally
+        {
+            SetBusy(false, null);
+        }
+
+        if (cached.Library is null)
+        {
+            SetStatus($"{cached.Reason ?? "没有可用的音乐库缓存。"} 正在扫描 osu!.db …");
+            await RescanAsync();
+            return;
+        }
+
+        ApplyLibrary(cached.Library);
+
+        SetStatus(cached.Freshness == LibraryCacheFreshness.Current
+            ? BuildScanSummary(cached.Library) + " 本次直接载入缓存（按 F5 可重新扫描）。"
+            : $"osu!.db 已更新（{cached.Reason}），当前显示的是缓存内容，按 F5 可重新扫描并更新缓存。");
+    }
+
+    /// <summary>把一份音乐库装到界面上（缓存载入与重新扫描共用）。</summary>
+    private void ApplyLibrary(MusicLibrary library)
+    {
+        _library = library;
+        _durationCache.ApplyTo(library.Tracks);
+
+        // 这里刻意 **不** 自动清理播放列表中的失效条目：
+        // 一旦扫描的是另一个 osu! 目录（或音乐库暂时不完整），自动清理会静默删掉用户播放列表的内容。
+        // 现在只统计数量并提示，由用户通过“播放列表 → 清理失效条目…”显式确认后再清理。
+        int stale = CountStalePlaylistEntries(library);
+
+        RefreshPlaylistList();
+        ApplyFilter();
+
+        _libraryLabel.Text = $"曲目 {library.Tracks.Count} · 可播放 {library.Statistics.TracksWithAudio} · 缺失 {library.Statistics.TracksWithoutAudio}";
+
+        if (stale > 0)
+        {
+            SetStatus($"播放列表中还有 {stale} 条曲目不在当前音乐库里（可用“播放列表 → 清理失效条目…”清理）。");
+        }
+    }
+
+    private static string BuildScanSummary(MusicLibrary library)
+        => $"已导入 {library.Statistics.BeatmapCount} 张谱面，合并为 {library.Tracks.Count} 首曲目"
+            + $"（可播放 {library.Statistics.TracksWithAudio} 首，音频缺失 {library.Statistics.TracksWithoutAudio} 首）"
+            + $"，耗时 {library.Statistics.ScanDuration.TotalSeconds:0.0} 秒。";
+
+    /// <summary>删除音乐库缓存：当前界面不动，下次启动会重新扫描。</summary>
+    private void ClearLibraryCache()
+    {
+        _libraryCache.Clear();
+        SetStatus("已删除音乐库缓存，下次启动会重新扫描 osu!.db。");
     }
 
     private void SetBusy(bool busy, string? message)
@@ -156,6 +234,7 @@ public sealed partial class MainForm
 
             _rescanItem.Enabled = !busy;
             _selectOsuFolderItem.Enabled = !busy;
+            _clearLibraryCacheItem.Enabled = !busy;
         });
     }
 
