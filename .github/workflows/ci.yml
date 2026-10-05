@@ -46,3 +46,36 @@ jobs:
         with:
           name: OsuMusicPlayer
           path: src/OsuMusicPlayer.App/bin/Release/net9.0-windows/publish/
+
+  release:
+    needs: build-and-test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download player artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: OsuMusicPlayer
+          path: release-assets
+
+      - name: Package and generate tag
+        id: package
+        shell: pwsh
+        run: |
+          $tag = "v$(Get-Date -Format 'yyyy.MM.dd').${{ github.run_number }}"
+          "TAG=$tag" >> $env:GITHUB_OUTPUT
+          Compress-Archive -Path release-assets/* -DestinationPath "OsuMusicPlayer-$tag.zip"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.package.outputs.TAG }}
+          name: ${{ steps.package.outputs.TAG }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          files: OsuMusicPlayer-${{ steps.package.outputs.TAG }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
