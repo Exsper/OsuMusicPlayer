@@ -89,9 +89,13 @@ public sealed class MusicLibraryBuilderTests(SampleLibraryFixture fixture)
     {
         MusicTrack track = fixture.TrackOfMapSet(1003);
 
-        Assert.Equal("幽閉サテライト", track.Artist);
-        Assert.Equal("色は匂へど散りぬるを", track.Title);
+        // 罗马化与原文（Unicode）字段都要保留下来，供界面切换显示。
+        Assert.Equal("Yuuhei Satellite", track.Artist);
+        Assert.Equal("幽閉サテライト", track.ArtistUnicode);
+        Assert.Equal("Iro wa Nioedo Chirinuru wo", track.Title);
+        Assert.Equal("色は匂へど散りぬるを", track.TitleUnicode);
         Assert.Contains("色は匂へど散りぬるを", track.SearchIndex, StringComparison.Ordinal);
+        Assert.Contains("yuuhei", track.SearchIndex, StringComparison.Ordinal);
     }
 
     [Fact]

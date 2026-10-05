@@ -58,11 +58,33 @@ public sealed class MusicTrack
     public TimeSpan? Duration { get; set; }
 
     // ---- 计算属性 ----
-    public string DisplayArtist => !string.IsNullOrWhiteSpace(Artist) ? Artist : ArtistUnicode;
+    /// <summary>默认显示写法（罗马化，缺失时回退原文）。需要切换显示写法时请用 <see cref="GetDisplayArtist"/>。</summary>
+    public string DisplayArtist => GetDisplayArtist(TrackNameDisplay.Romanized);
 
-    public string DisplayTitle => !string.IsNullOrWhiteSpace(Title) ? Title : TitleUnicode;
+    /// <summary>默认显示写法（罗马化，缺失时回退原文）。需要切换显示写法时请用 <see cref="GetDisplayTitle"/>。</summary>
+    public string DisplayTitle => GetDisplayTitle(TrackNameDisplay.Romanized);
 
     public string DisplayName => $"{DisplayArtist} - {DisplayTitle}";
+
+    /// <summary>按指定写法返回艺术家名（该写法为空时回退到另一种写法，避免出现空白）。</summary>
+    public string GetDisplayArtist(TrackNameDisplay display)
+        => display == TrackNameDisplay.Original
+            ? FirstNotEmpty(ArtistUnicode, Artist)
+            : FirstNotEmpty(Artist, ArtistUnicode);
+
+    /// <summary>按指定写法返回标题（该写法为空时回退到另一种写法，避免出现空白）。</summary>
+    public string GetDisplayTitle(TrackNameDisplay display)
+        => display == TrackNameDisplay.Original
+            ? FirstNotEmpty(TitleUnicode, Title)
+            : FirstNotEmpty(Title, TitleUnicode);
+
+    /// <summary>按指定写法返回“艺术家 - 标题”。</summary>
+    public string GetDisplayName(TrackNameDisplay display)
+        => $"{GetDisplayArtist(display)} - {GetDisplayTitle(display)}";
+
+    private static string FirstNotEmpty(string preferred, string fallback)
+        => !string.IsNullOrWhiteSpace(preferred) ? preferred : fallback ?? string.Empty;
+
 
     public string MapSetUrl => MapSetId > 0 ? $"https://osu.ppy.sh/s/{MapSetId}" : string.Empty;
 

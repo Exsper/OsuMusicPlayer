@@ -300,7 +300,7 @@ public sealed partial class MainForm
 
     private void OnPlaybackError(PlaybackErrorEventArgs args)
     {
-        string name = args.Track is null ? "音频" : args.Track.DisplayName;
+        string name = args.Track is null ? "音频" : args.Track.GetDisplayName(_settings.NameDisplay);
 
         if (args.Error is AudioOutputUnavailableException)
         {

@@ -36,18 +36,33 @@
 ### 3. 自定义播放列表
 - 新建 / 重命名 / 删除 / 清空播放列表；“我喜欢的音乐”为内置收藏列表。
 - 支持多选曲目后加入播放列表，或**直接把曲目拖到左侧播放列表上**。
-- 播放列表只保存曲目标识，曲目信息始终来自当前音乐库（换 osu! 目录后不会失效；
-  已不存在的曲目会在扫描时自动清理）。
+- 播放列表只保存曲目标识，曲目信息始终来自当前音乐库。
+- **扫描音乐库不会自动删除播放列表里的条目**：换了 osu! 目录后，旧条目只会显示为“失效”，
+  只有你显式执行 `播放列表 → 清理失效条目…` 并确认后才会移除。
 - 可把当前列表导出为 **M3U8**，方便在 foobar2000 / VLC 等播放器中打开。
 
-### 4. 导入 osu! 收藏夹为播放列表
+### 4. 标题 / 艺术家写法切换（原文 ↔ 罗马化）
+- osu!.db 同时保存**罗马化（拉丁）**与**原文（Unicode，如日文/中文）**两套标题与艺术家字段。
+- 一键切换显示写法：
+  - 搜索栏右侧的 `显示：罗马化 / 显示：原文` 按钮；
+  - 菜单 `视图 → 标题与艺术家显示`；
+  - 快捷键 `Ctrl+T`。
+- 列表、正在播放面板、悬浮提示、复制到剪贴板与 M3U8 导出都会使用当前写法；
+  某一种写法缺失时自动回退到另一种，不会出现空白。
+- 搜索不受影响：**两种写法的关键词都能搜到同一首曲目**（例如 `yuuhei` 与 `幽閉`）。
+
+原文（Unicode）写法下的效果（同一份数据，仅切换显示写法）：
+
+![原文写法](docs/ui-original-names.png)
+
+### 5. 导入 osu! 收藏夹为播放列表
 - 一键导入 osu! 目录下的 `collection.db`，或从任意 `.db` 收藏夹文件导入。
 - 收藏夹里保存的是难度 MD5，导入时会映射回**合并后的曲目**，
   因此一个收藏夹里同一首歌的多个难度只会出现一次。
 - 导入报告会显示：每个收藏夹匹配到多少首曲目、有多少张谱面在本地找不到、
   哪些空收藏夹被跳过；同名（同为导入来源）的播放列表会被更新而不是重复创建。
 
-### 5. 播放
+### 6. 播放
 - 支持 `mp3` / `ogg` / `wav` / `aiff`（`.ogg` 使用 Vorbis 解码，其余交给 NAudio）。
 - 播放模式：顺序播放、列表循环、单曲循环、随机播放（一轮内不重复，跨轮不立刻重复上一首）。
 - 上一首 / 下一首 / 停止 / 拖动进度 / 音量；自动跳过损坏或缺失的音频文件并在状态栏提示。
@@ -115,6 +130,7 @@ dotnet publish src\OsuMusicPlayer.App\OsuMusicPlayer.App.csproj -c Release -r wi
 | `Delete` | 从当前播放列表移除选中曲目 |
 | `Ctrl+F` | 聚焦搜索框 |
 | `Ctrl+N` | 新建播放列表 |
+| `Ctrl+T` | 在原文（Unicode）与罗马化写法之间切换标题 / 艺术家 |
 | `Ctrl+I` | 导入 osu! 收藏夹 |
 | `Ctrl+O` | 选择 osu! 目录 |
 | `Ctrl+C`（列表内） | 复制选中的“艺术家 - 标题” |
@@ -151,7 +167,8 @@ OsuMusicPlayer.sln
 | 类型 | 作用 |
 | --- | --- |
 | `MusicLibraryBuilder` | 读取 `osu!.db` 并按“谱面集 + 音频”合并为 `MusicTrack` 列表 |
-| `MusicTrack` | 一首曲目（合并后的音乐），包含可播放文件路径与所有难度信息 |
+| `MusicTrack` | 一首曲目（合并后的音乐），包含可播放文件路径与所有难度信息，以及原文/罗马化两套名称 |
+| `TrackNameDisplay` | 标题 / 艺术家的显示写法（罗马化 / 原文） |
 | `TrackSearcher` / `TrackSorter` | 关键词搜索与列表排序 |
 | `PlaylistStore` | 播放列表增删改查与 JSON 持久化 |
 | `CollectionImporter` | 把 `collection.db` 收藏夹导入为播放列表 |
@@ -160,12 +177,15 @@ OsuMusicPlayer.sln
 
 ## 自检与诊断
 
+自检与截图都可以用 `--data-dir`（或环境变量 `OSUMP_DATA_DIR`）指定独立的数据目录，
+这样不会读写你平时的设置与播放列表：
+
 ```powershell
 # 全流程自检，退出码 0 表示全部通过
-OsuMusicPlayer.exe --self-test --osu-dir "C:\osu!"
+OsuMusicPlayer.exe --self-test --osu-dir "C:\osu!" --data-dir .testdata\appdata
 
 # 启动后加载音乐库、截图并退出（界面回归验证）
-OsuMusicPlayer.exe --screenshot shot.png --osu-dir .testdata\sample-osu
+OsuMusicPlayer.exe --screenshot shot.png --osu-dir .testdata\sample-osu --data-dir .testdata\appdata
 ```
 
 ## 常见问题
@@ -181,6 +201,9 @@ OsuMusicPlayer.exe --screenshot shot.png --osu-dir .testdata\sample-osu
 - **`osu!.db` 版本过旧报错？** 先启动一次 osu! stable 客户端让它更新数据库。
 - **收藏夹导入后缺少曲目？** 收藏夹里保存的是本地谱面的 MD5；
   如果这些谱面已经不在音乐库里（未下载/已删除），就会计入“本地找不到的谱面”。
+- **换了 osu! 目录后播放列表显示为空的条目？** 这些条目对应的谱面不在当前音乐库里。
+  应用**不会**自动删除它们；确认不再需要时用 `播放列表 → 清理失效条目…` 手动清理，
+  换回原来的 osu! 目录即可恢复显示。
 - **没有声音 / 提示没有输出设备？** 检查系统默认播放设备；
   无声卡的环境下仍可正常浏览、搜索与管理播放列表。
 

@@ -11,6 +11,7 @@ public sealed partial class MainForm
     private readonly ToolStripMenuItem _fileMenu = new("文件(&F)");
     private readonly ToolStripMenuItem _playlistMenu = new("播放列表(&P)");
     private readonly ToolStripMenuItem _playbackMenu = new("播放(&B)");
+    private readonly ToolStripMenuItem _viewMenu = new("视图(&V)");
     private readonly ToolStripMenuItem _helpMenu = new("帮助(&H)");
 
     private readonly ToolStripMenuItem _selectOsuFolderItem = new("选择 osu! 目录…");
@@ -26,6 +27,7 @@ public sealed partial class MainForm
     private readonly ToolStripMenuItem _renamePlaylistItem = new("重命名播放列表…");
     private readonly ToolStripMenuItem _deletePlaylistItem = new("删除播放列表");
     private readonly ToolStripMenuItem _clearPlaylistItem = new("清空播放列表");
+    private readonly ToolStripMenuItem _cleanupPlaylistItem = new("清理失效条目…");
     private readonly ToolStripMenuItem _showFavoritesItem = new("显示“我喜欢的音乐”");
 
     private readonly ToolStripMenuItem _togglePlayItem = new("播放 / 暂停\t空格");
@@ -42,6 +44,11 @@ public sealed partial class MainForm
     private readonly ToolStripMenuItem _aboutItem = new("关于");
     private readonly ToolStripMenuItem _shortcutsItem = new("快捷键说明");
 
+    private readonly ToolStripMenuItem _nameDisplayMenu = new("标题与艺术家显示");
+    private readonly ToolStripMenuItem _nameDisplayRomanizedItem = new("罗马化（拉丁）写法\tCtrl+T");
+    private readonly ToolStripMenuItem _nameDisplayOriginalItem = new("原文（Unicode）");
+    private readonly ToolStripMenuItem _showCoverItem = new("显示谱面背景封面");
+
     private readonly ListBox _playlistList = new();
     private readonly Button _newPlaylistButton = new();
     private readonly Button _renamePlaylistButton = new();
@@ -53,6 +60,7 @@ public sealed partial class MainForm
     private readonly TextBox _searchBox = new();
     private readonly ComboBox _searchFieldBox = new();
     private readonly CheckBox _onlyPlayableCheck = new();
+    private readonly CheckBox _nameDisplayCheck = new();
     private readonly Label _resultLabel = new();
     private readonly ListView _trackList = new();
 
@@ -195,6 +203,7 @@ public sealed partial class MainForm
         _renamePlaylistItem.Click += (_, _) => RenameSelectedPlaylist();
         _deletePlaylistItem.Click += (_, _) => DeleteSelectedPlaylist();
         _clearPlaylistItem.Click += (_, _) => ClearSelectedPlaylist();
+        _cleanupPlaylistItem.Click += (_, _) => CleanUpStaleEntries();
         _showFavoritesItem.Click += (_, _) => SelectPlaylist(PlaylistStore.FavoritesId);
 
         _togglePlayItem.Click += (_, _) => TogglePlayPause();
@@ -233,6 +242,7 @@ public sealed partial class MainForm
             _deletePlaylistItem,
             _clearPlaylistItem,
             new ToolStripSeparator(),
+            _cleanupPlaylistItem,
             _showFavoritesItem,
         ]);
 
@@ -254,7 +264,20 @@ public sealed partial class MainForm
 
         _helpMenu.DropDownItems.AddRange([_shortcutsItem, _aboutItem]);
 
-        _menu.Items.AddRange([_fileMenu, _playlistMenu, _playbackMenu, _helpMenu]);
+        _nameDisplayRomanizedItem.Click += (_, _) => SetNameDisplay(TrackNameDisplay.Romanized);
+        _nameDisplayOriginalItem.Click += (_, _) => SetNameDisplay(TrackNameDisplay.Original);
+        _nameDisplayMenu.DropDownItems.AddRange([_nameDisplayRomanizedItem, _nameDisplayOriginalItem]);
+
+        _showCoverItem.CheckOnClick = true;
+        _showCoverItem.Click += (_, _) =>
+        {
+            _settings.ShowCover = _showCoverItem.Checked;
+            _nowPlaying.ShowCover = _showCoverItem.Checked;
+        };
+
+        _viewMenu.DropDownItems.AddRange([_nameDisplayMenu, new ToolStripSeparator(), _showCoverItem]);
+
+        _menu.Items.AddRange([_fileMenu, _playlistMenu, _playbackMenu, _viewMenu, _helpMenu]);
     }
 
     private Control BuildPlaylistPanel()
@@ -373,15 +396,16 @@ public sealed partial class MainForm
         TableLayoutPanel bar = new()
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 5,
+            ColumnCount = 6,
             RowCount = 1,
         };
 
         bar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 46f));
         bar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
         bar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 116f));
-        bar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 132f));
-        bar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 210f));
+        bar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 128f));
+        bar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 128f));
+        bar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 176f));
 
         Label label = new()
         {
@@ -405,6 +429,20 @@ public sealed partial class MainForm
         _onlyPlayableCheck.Checked = true;
         _onlyPlayableCheck.CheckedChanged += (_, _) => ApplyFilter();
 
+        _nameDisplayCheck.Dock = DockStyle.Fill;
+        _nameDisplayCheck.Appearance = Appearance.Button;
+        _nameDisplayCheck.TextAlign = ContentAlignment.MiddleCenter;
+        _nameDisplayCheck.Text = "显示：罗马化";
+        _nameDisplayCheck.CheckedChanged += (_, _) =>
+        {
+            if (!_suppressNameDisplay)
+            {
+                SetNameDisplay(_nameDisplayCheck.Checked ? TrackNameDisplay.Original : TrackNameDisplay.Romanized);
+            }
+        };
+
+        _toolTip.SetToolTip(_nameDisplayCheck, "在罗马化（拉丁）写法与原文（Unicode，如日文/中文）之间切换标题与艺术家（Ctrl+T）");
+
         _resultLabel.Dock = DockStyle.Fill;
         _resultLabel.TextAlign = ContentAlignment.MiddleRight;
         _resultLabel.ForeColor = SystemColors.GrayText;
@@ -413,7 +451,8 @@ public sealed partial class MainForm
         bar.Controls.Add(_searchBox, 1, 0);
         bar.Controls.Add(_searchFieldBox, 2, 0);
         bar.Controls.Add(_onlyPlayableCheck, 3, 0);
-        bar.Controls.Add(_resultLabel, 4, 0);
+        bar.Controls.Add(_nameDisplayCheck, 4, 0);
+        bar.Controls.Add(_resultLabel, 5, 0);
 
         return bar;
     }

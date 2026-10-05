@@ -315,6 +315,21 @@ public sealed class PlaylistStore
         return true;
     }
 
+    /// <summary>
+    /// 统计播放列表里已不在音乐库中的曲目数量（只读，不做任何修改）。
+    /// 扫描音乐库时不会自动清理失效条目，避免换了 osu! 目录后静默丢失播放列表内容。
+    /// </summary>
+    public int CountStaleEntries(MusicLibrary library)
+        => _playlists.Sum(playlist => CountStaleEntries(playlist.Id, library));
+
+    /// <summary>统计指定播放列表里已不在音乐库中的曲目数量。</summary>
+    public int CountStaleEntries(string playlistId, MusicLibrary library)
+    {
+        Playlist? playlist = Get(playlistId);
+
+        return playlist is null ? 0 : playlist.TrackIds.Count(id => library.FindById(id) is null);
+    }
+
     /// <summary>清掉播放列表中已不在音乐库里的曲目标识，返回清理数量。</summary>
     public int Prune(MusicLibrary library)
     {

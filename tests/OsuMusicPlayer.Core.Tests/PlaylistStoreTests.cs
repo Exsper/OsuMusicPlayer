@@ -151,6 +151,30 @@ public sealed class PlaylistStoreTests(SampleLibraryFixture fixture)
     }
 
     [Fact]
+    public void 统计失效条目不修改任何播放列表()
+    {
+        PlaylistStore store = new();
+        store.Load();
+
+        MusicTrack track = fixture.Library.Tracks[0];
+        Playlist playlist = store.Create("测试");
+        store.AddTracks(playlist.Id, [track.Id, "s9999|ghost.mp3", "s9998|ghost2.mp3"]);
+        store.ToggleFavorite("s9997|ghost3.mp3");
+
+        // 统计只读：换 osu! 目录后不会自动删掉用户内容。
+        Assert.Equal(3, store.CountStaleEntries(fixture.Library));
+        Assert.Equal(2, store.CountStaleEntries(playlist.Id, fixture.Library));
+        Assert.Equal(0, store.CountStaleEntries("not-exists", fixture.Library));
+        Assert.Equal(3, store.Get(playlist.Id)!.TrackIds.Count);
+        Assert.Single(store.Get(PlaylistStore.FavoritesId)!.TrackIds);
+
+        // 只有显式调用 Prune 才会真正清理。
+        Assert.Equal(3, store.Prune(fixture.Library));
+        Assert.Equal(0, store.CountStaleEntries(fixture.Library));
+        Assert.Equal([track.Id], store.Get(playlist.Id)!.TrackIds);
+    }
+
+    [Fact]
     public void 清理应删除音乐库中不存在的曲目()
     {
         PlaylistStore store = new();

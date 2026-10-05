@@ -29,6 +29,7 @@ public sealed partial class MainForm : Form
     private string _currentPlaylistId = AllTracksId;
     private bool _seeking;
     private bool _suppressModeChange;
+    private bool _suppressNameDisplay;
     private bool _suppressPlaylistEvents;
     private CancellationTokenSource? _analysisCts;
     private bool _ready;
@@ -150,10 +151,48 @@ public sealed partial class MainForm : Form
         _onlyPlayableCheck.Checked = _settings.OnlyPlayable;
         _searchFieldBox.SelectedIndex = Math.Clamp((int)_settings.SearchField, 0, 5);
         _nowPlaying.ShowCover = _settings.ShowCover;
+        _showCoverItem.Checked = _settings.ShowCover;
+        ApplyNameDisplay(_settings.NameDisplay);
 
         int volume = (int)Math.Round(Math.Clamp(_settings.Volume, 0f, 1f) * 100);
         _volumeBar.Value = Math.Clamp(volume, _volumeBar.Minimum, _volumeBar.Maximum);
     }
+
+    /// <summary>
+    /// 切换“标题 / 艺术家”显示写法（原文 ↔ 罗马化），并刷新列表、正在播放面板与菜单选中状态。
+    /// </summary>
+    private void SetNameDisplay(TrackNameDisplay display)
+    {
+        if (_settings.NameDisplay == display && _nameDisplayCheck.Text.Length > 0)
+        {
+            return;
+        }
+
+        _settings.NameDisplay = display;
+        ApplyNameDisplay(display);
+        _trackList.Invalidate();
+
+        SetStatus(display == TrackNameDisplay.Original
+            ? "标题与艺术家已切换为原文（Unicode）写法。"
+            : "标题与艺术家已切换为罗马化（拉丁）写法。");
+    }
+
+    private void ApplyNameDisplay(TrackNameDisplay display)
+    {
+        _suppressNameDisplay = true;
+        _nameDisplayCheck.Checked = display == TrackNameDisplay.Original;
+        _suppressNameDisplay = false;
+
+        _nameDisplayCheck.Text = display == TrackNameDisplay.Original ? "显示：原文" : "显示：罗马化";
+        _nameDisplayRomanizedItem.Checked = display == TrackNameDisplay.Romanized;
+        _nameDisplayOriginalItem.Checked = display == TrackNameDisplay.Original;
+        _nowPlaying.NameDisplay = display;
+    }
+
+    private void ToggleNameDisplay()
+        => SetNameDisplay(_settings.NameDisplay == TrackNameDisplay.Original
+            ? TrackNameDisplay.Romanized
+            : TrackNameDisplay.Original);
 
     private async void OnShown(object? sender, EventArgs e)
     {
@@ -308,6 +347,10 @@ public sealed partial class MainForm : Form
                 CreatePlaylistInteractive();
                 return true;
 
+            case Keys.Control | Keys.T:
+                ToggleNameDisplay();
+                return true;
+
             case Keys.Control | Keys.O:
                 _ = SelectOsuFolderAsync();
                 return true;
@@ -344,6 +387,7 @@ public sealed partial class MainForm : Form
             "功能：",
             "  · 读取 osu! stable 的 osu!.db，把同一谱面集使用同一音频的难度合并为一首曲目",
             "  · 从全部音乐中按标题/艺术家/谱师/标签/难度/谱面集 ID 搜索",
+            "  · 标题与艺术家可在原文（Unicode）与罗马化写法之间一键切换（Ctrl+T）",
             "  · 创建、重命名、删除自定义播放列表，收藏喜欢的曲目",
             "  · 把 osu! 收藏夹（collection.db）导入为播放列表",
             "  · 播放 mp3 / ogg / wav，支持顺序、列表循环、单曲循环与随机播放",
@@ -366,6 +410,7 @@ public sealed partial class MainForm : Form
             "Delete        从当前播放列表移除选中曲目",
             "Ctrl+F        聚焦搜索框",
             "Ctrl+N        新建播放列表",
+            "Ctrl+T        在原文（Unicode）与罗马化写法之间切换标题 / 艺术家",
             "Ctrl+I        导入 osu! 收藏夹",
             "Ctrl+O        选择 osu! 目录",
             "F5            重新扫描音乐库",

@@ -55,6 +55,31 @@ public sealed class M3u8ExporterTests
     }
 
     [Fact]
+    public void 可以按原文写法导出()
+    {
+        MusicTrack track = new()
+        {
+            Id = "s5|e.mp3",
+            Artist = "Yuuhei Satellite",
+            ArtistUnicode = "幽閉サテライト",
+            Title = "Iro wa Nioedo Chirinuru wo",
+            TitleUnicode = "色は匂へど散りぬるを",
+            AudioFilePath = @"C:\e.mp3",
+            Duration = TimeSpan.FromSeconds(10),
+        };
+
+        Assert.Contains(
+            "#EXTINF:10,Yuuhei Satellite - Iro wa Nioedo Chirinuru wo",
+            M3u8Exporter.Build([track]),
+            StringComparison.Ordinal);
+
+        Assert.Contains(
+            "#EXTINF:10,幽閉サテライト - 色は匂へど散りぬるを",
+            M3u8Exporter.Build([track], Core.Enums.TrackNameDisplay.Original),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void 写入文件应采用UTF8无BOM()
     {
         using TempDirectory temp = new();

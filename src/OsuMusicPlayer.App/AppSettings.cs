@@ -6,9 +6,10 @@ using OsuMusicPlayer.Core.Services;
 /// <summary>程序的数据目录（设置、播放列表、时长缓存）。</summary>
 public static class AppPaths
 {
-    public static string DataDirectory { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "OsuMusicPlayer");
+    /// <summary>可用环境变量覆盖数据目录（自检 / 截图 / 多份配置时使用，避免动到真实数据）。</summary>
+    public const string DataDirectoryEnvironmentVariable = "OSUMP_DATA_DIR";
+
+    public static string DataDirectory { get; } = ResolveDataDirectory();
 
     public static string SettingsFile => Path.Combine(DataDirectory, "settings.json");
 
@@ -17,6 +18,27 @@ public static class AppPaths
     public static string DurationsFile => Path.Combine(DataDirectory, "durations.json");
 
     public static void EnsureCreated() => Directory.CreateDirectory(DataDirectory);
+
+    private static string ResolveDataDirectory()
+    {
+        string? custom = Environment.GetEnvironmentVariable(DataDirectoryEnvironmentVariable);
+
+        if (!string.IsNullOrWhiteSpace(custom))
+        {
+            try
+            {
+                return Path.GetFullPath(custom);
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                // 路径非法时退回默认目录。
+            }
+        }
+
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "OsuMusicPlayer");
+    }
 }
 
 /// <summary>界面设置（持久化到 <see cref="AppPaths.SettingsFile"/>）。</summary>
@@ -32,6 +54,9 @@ public sealed class AppSettings
     public bool OnlyPlayable { get; set; } = true;
 
     public SearchField SearchField { get; set; } = SearchField.All;
+
+    /// <summary>列表与“正在播放”里标题 / 艺术家使用罗马化写法还是原文（Unicode）。</summary>
+    public TrackNameDisplay NameDisplay { get; set; } = TrackNameDisplay.Romanized;
 
     public string? LastPlaylistId { get; set; }
 
@@ -96,6 +121,9 @@ public sealed record CommandLineOptions
 {
     public string? OsuDirectory { get; init; }
 
+    /// <summary>覆盖数据目录（设置 / 播放列表 / 时长缓存）。</summary>
+    public string? DataDirectory { get; init; }
+
     public bool SelfTest { get; init; }
 
     public string? ScreenshotPath { get; init; }
@@ -107,6 +135,7 @@ public sealed record CommandLineOptions
     public static CommandLineOptions Parse(string[] args)
     {
         string? osuDirectory = null;
+        string? dataDirectory = null;
         string? screenshot = null;
         bool selfTest = false;
         bool help = false;
@@ -143,6 +172,15 @@ public sealed record CommandLineOptions
 
                     break;
 
+                case "--data-dir":
+                case "--data":
+                    if (i + 1 < args.Length)
+                    {
+                        dataDirectory = args[++i];
+                    }
+
+                    break;
+
                 case "-s":
                 case "--screenshot":
                     if (i + 1 < args.Length)
@@ -165,6 +203,7 @@ public sealed record CommandLineOptions
         return new CommandLineOptions
         {
             OsuDirectory = osuDirectory,
+            DataDirectory = dataDirectory,
             SelfTest = selfTest,
             ScreenshotPath = screenshot,
             ShowHelp = help,

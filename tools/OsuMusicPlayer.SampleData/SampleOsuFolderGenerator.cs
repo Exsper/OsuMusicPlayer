@@ -377,7 +377,7 @@ public static class SampleOsuFolderGenerator
         },
 
         new SampleSet(
-            1003, "幽閉サテライト", "色は匂へど散りぬるを", "幽閉サテライト", "色は匂へど散りぬるを",
+            1003, "Yuuhei Satellite", "Iro wa Nioedo Chirinuru wo", "幽閉サテライト", "色は匂へど散りぬるを",
             "Yukey", "touhou vocal senya", "東方Project",
             "audio.wav", 330, 63000,
             [

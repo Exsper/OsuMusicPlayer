@@ -3,6 +3,7 @@ namespace OsuMusicPlayer.App;
 using System.Globalization;
 using OsuMusicPlayer.App.Dialogs;
 using OsuMusicPlayer.Audio;
+using OsuMusicPlayer.Core.Enums;
 using OsuMusicPlayer.Core.IO;
 using OsuMusicPlayer.Core.Models;
 using OsuMusicPlayer.Core.Services;
@@ -104,8 +105,11 @@ public sealed partial class MainForm
             _library = library;
             _durationCache.ApplyTo(library.Tracks);
 
-            // 音乐库为空时不要清理播放列表，避免扫描异常导致列表被清空。
-            int pruned = library.Tracks.Count > 0 ? _playlistStore.Prune(library) : 0;
+            // 这里刻意 **不** 自动清理播放列表中的失效条目：
+            // 一旦扫描的是另一个 osu! 目录（或音乐库暂时不完整），自动清理会静默删掉用户播放列表的内容。
+            // 现在只统计数量并提示，由用户通过“播放列表 → 清理失效条目…”显式确认后再清理。
+            int stale = CountStalePlaylistEntries(library);
+
             RefreshPlaylistList();
             ApplyFilter();
 
@@ -115,9 +119,9 @@ public sealed partial class MainForm
                 + $"（可播放 {library.Statistics.TracksWithAudio} 首，音频缺失 {library.Statistics.TracksWithoutAudio} 首）"
                 + $"，耗时 {library.Statistics.ScanDuration.TotalSeconds:0.0} 秒。";
 
-            if (pruned > 0)
+            if (stale > 0)
             {
-                summary += $" 已清理 {pruned} 条失效的播放列表条目。";
+                summary += $" 播放列表中还有 {stale} 条曲目不在当前音乐库里（可用“播放列表 → 清理失效条目…”清理）。";
             }
 
             SetStatus(summary);
@@ -211,10 +215,11 @@ public sealed partial class MainForm
         }
 
         MusicTrack track = _visibleTracks[e.ItemIndex];
+        TrackNameDisplay nameDisplay = _settings.NameDisplay;
 
         ListViewItem item = new((e.ItemIndex + 1).ToString(CultureInfo.InvariantCulture));
-        item.SubItems.Add(track.DisplayTitle);
-        item.SubItems.Add(track.DisplayArtist);
+        item.SubItems.Add(track.GetDisplayTitle(nameDisplay));
+        item.SubItems.Add(track.GetDisplayArtist(nameDisplay));
         item.SubItems.Add(track.Creator);
         item.SubItems.Add(track.MapSetId > 0 ? track.MapSetId.ToString(CultureInfo.InvariantCulture) : "-");
         item.SubItems.Add(track.BeatmapCount.ToString(CultureInfo.InvariantCulture));
@@ -224,7 +229,7 @@ public sealed partial class MainForm
         item.SubItems.Add(track.MainBpm > 0 ? track.MainBpm.ToString("0.#", CultureInfo.CurrentCulture) : "-");
         item.SubItems.Add(track.StateText);
         item.Tag = track;
-        item.ToolTipText = BuildTrackTooltip(track);
+        item.ToolTipText = BuildTrackTooltip(track, nameDisplay);
 
         if (!track.AudioFileExists)
         {
@@ -256,12 +261,14 @@ public sealed partial class MainForm
         return "-";
     }
 
-    private static string BuildTrackTooltip(MusicTrack track)
+    private static string BuildTrackTooltip(MusicTrack track, TrackNameDisplay nameDisplay)
     {
         List<string> lines =
         [
-            $"{track.DisplayArtist} - {track.DisplayTitle}",
+            track.GetDisplayName(nameDisplay),
             $"谱师：{track.Creator}",
+            $"原文：{track.ArtistUnicode} - {track.TitleUnicode}",
+            $"罗马化：{track.Artist} - {track.Title}",
             track.MapSetId > 0 ? $"谱面集：https://osu.ppy.sh/s/{track.MapSetId}" : "本地谱面（无谱面集 ID）",
             $"难度（{track.Difficulties.Count}）：{string.Join(" / ", track.Difficulties)}",
             $"音频：{track.AudioFileName}{(track.AudioFileExists ? string.Empty : "（缺失）")}",
@@ -337,7 +344,9 @@ public sealed partial class MainForm
             return;
         }
 
-        CopyToClipboard(string.Join(Environment.NewLine, selected.Select(static track => $"{track.DisplayArtist} - {track.DisplayTitle}")));
+        CopyToClipboard(string.Join(
+            Environment.NewLine,
+            selected.Select(track => track.GetDisplayName(_settings.NameDisplay))));
     }
 
     private void TrackList_ItemDrag(object? sender, ItemDragEventArgs e)
@@ -577,7 +586,7 @@ public sealed partial class MainForm
 
         try
         {
-            M3u8Exporter.Write(_visibleTracks, dialog.FileName);
+            M3u8Exporter.Write(_visibleTracks, dialog.FileName, _settings.NameDisplay);
             SetStatus($"已导出 {_visibleTracks.Count} 首曲目到 {dialog.FileName}");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

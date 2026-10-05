@@ -18,6 +18,22 @@ internal static class Program
             return 0;
         }
 
+        // 必须在任何 AppPaths 访问之前设置，确保自检 / 截图不会动到真实数据目录。
+        if (!string.IsNullOrWhiteSpace(options.DataDirectory))
+        {
+            try
+            {
+                Environment.SetEnvironmentVariable(
+                    AppPaths.DataDirectoryEnvironmentVariable,
+                    Path.GetFullPath(options.DataDirectory));
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                Console.Error.WriteLine($"指定的数据目录无效：{options.DataDirectory}（{ex.Message}）");
+                return 2;
+            }
+        }
+
         if (options.SelfTest)
         {
             AttachConsole(AttachParentProcess);
@@ -80,11 +96,13 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine("用法：");
         Console.WriteLine("  OsuMusicPlayer.exe [--osu-dir <osu! 安装目录>]");
-        Console.WriteLine("  OsuMusicPlayer.exe --self-test [--osu-dir <目录>]");
-        Console.WriteLine("  OsuMusicPlayer.exe --screenshot <输出图片> [--osu-dir <目录>]");
+        Console.WriteLine("  OsuMusicPlayer.exe --self-test [--osu-dir <目录>] [--data-dir <数据目录>]");
+        Console.WriteLine("  OsuMusicPlayer.exe --screenshot <输出图片> [--osu-dir <目录>] [--data-dir <数据目录>]");
         Console.WriteLine();
         Console.WriteLine("参数：");
         Console.WriteLine("  -d, --osu-dir <目录>   启动时直接扫描该 osu! stable 目录（含 osu!.db）");
+        Console.WriteLine("      --data-dir <目录>  使用指定的数据目录（设置/播放列表/时长缓存），");
+        Console.WriteLine($"                         默认 {AppPaths.DataDirectory}；也可用环境变量 {AppPaths.DataDirectoryEnvironmentVariable} 指定");
         Console.WriteLine("      --self-test        无界面自检：扫描音乐库、搜索、导入收藏夹、播放列表读写与音频探测");
         Console.WriteLine("  -s, --screenshot <文件> 启动后加载音乐库、截图并退出（用于界面验证）");
         Console.WriteLine("      --reset            忽略已保存的设置与窗口位置");

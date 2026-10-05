@@ -1,6 +1,7 @@
 namespace OsuMusicPlayer.App.Controls;
 
 using System.ComponentModel;
+using OsuMusicPlayer.Core.Enums;
 using OsuMusicPlayer.Core.Models;
 
 /// <summary>右下角的“正在播放”面板：封面、标题、艺术家、谱面集信息与难度列表。</summary>
@@ -19,6 +20,9 @@ public sealed class NowPlayingPanel : UserControl
     private readonly Label _path = new();
     private readonly ToolTip _toolTip = new();
     private bool _showCover = true;
+    private TrackNameDisplay _nameDisplay = TrackNameDisplay.Romanized;
+    private MusicTrack? _track;
+    private string? _renderedTrackId;
 
     public NowPlayingPanel()
     {
@@ -102,11 +106,39 @@ public sealed class NowPlayingPanel : UserControl
         }
     }
 
+    /// <summary>标题 / 艺术家的显示写法；改变后会立即刷新文本，不影响已加载的封面。</summary>
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    [Browsable(false)]
+    public TrackNameDisplay NameDisplay
+    {
+        get => _nameDisplay;
+        set
+        {
+            if (_nameDisplay == value)
+            {
+                return;
+            }
+
+            _nameDisplay = value;
+            ApplyTrackInfo();
+        }
+    }
+
     public void ShowTrack(MusicTrack? track, Image? cover)
     {
         Image? previous = _cover.Image;
         _cover.Image = cover;
         previous?.Dispose();
+
+        _track = track;
+        _renderedTrackId = null;
+        ApplyTrackInfo();
+    }
+
+    /// <summary>根据当前曲目与显示写法刷新文本区域。</summary>
+    private void ApplyTrackInfo()
+    {
+        MusicTrack? track = _track;
 
         if (track is null)
         {
@@ -123,8 +155,8 @@ public sealed class NowPlayingPanel : UserControl
 
         UpdateDifficultyRow(visible: true);
 
-        _title.Text = track.DisplayTitle;
-        _artist.Text = track.DisplayArtist
+        _title.Text = track.GetDisplayTitle(_nameDisplay);
+        _artist.Text = track.GetDisplayArtist(_nameDisplay)
             + (string.IsNullOrWhiteSpace(track.Creator) ? string.Empty : $"  ·  谱师 {track.Creator}");
 
         string stars = track.StarsNomod > 0 ? $"  ·  ★ {track.StarsNomod:0.##}" : string.Empty;
@@ -135,19 +167,24 @@ public sealed class NowPlayingPanel : UserControl
             + $"{track.StateText}  ·  {track.Difficulties.Count} 个难度  ·  {track.AudioFileName}"
             + (track.AudioFileExists ? string.Empty : "（音频缺失）");
 
-        _difficulties.BeginUpdate();
-        _difficulties.Items.Clear();
-
-        foreach (string difficulty in track.Difficulties)
+        if (_renderedTrackId != track.Id)
         {
-            _difficulties.Items.Add(difficulty);
-        }
+            _renderedTrackId = track.Id;
 
-        _difficulties.EndUpdate();
+            _difficulties.BeginUpdate();
+            _difficulties.Items.Clear();
+
+            foreach (string difficulty in track.Difficulties)
+            {
+                _difficulties.Items.Add(difficulty);
+            }
+
+            _difficulties.EndUpdate();
+        }
 
         _path.Text = track.AudioFilePath;
         _toolTip.SetToolTip(_path, track.AudioFilePath);
-        _toolTip.SetToolTip(_title, $"{track.DisplayArtist} - {track.DisplayTitle}");
+        _toolTip.SetToolTip(_title, $"{track.GetDisplayArtist(_nameDisplay)} - {track.GetDisplayTitle(_nameDisplay)}");
 
         _mapSetLink.Visible = track.MapSetId > 0;
         _mapSetLink.Tag = track.MapSetUrl;

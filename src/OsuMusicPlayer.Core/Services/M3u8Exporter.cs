@@ -2,12 +2,13 @@ namespace OsuMusicPlayer.Core.Services;
 
 using System.Globalization;
 using System.Text;
+using OsuMusicPlayer.Core.Enums;
 using OsuMusicPlayer.Core.Models;
 
 /// <summary>把曲目列表导出为 M3U8 播放列表（可被 foobar2000、VLC 等播放器直接打开）。</summary>
 public static class M3u8Exporter
 {
-    public static string Build(IEnumerable<MusicTrack> tracks)
+    public static string Build(IEnumerable<MusicTrack> tracks, TrackNameDisplay nameDisplay = TrackNameDisplay.Romanized)
     {
         StringBuilder builder = new();
         builder.AppendLine("#EXTM3U");
@@ -21,9 +22,9 @@ public static class M3u8Exporter
             builder.Append("#EXTINF:")
                 .Append(seconds.ToString(CultureInfo.InvariantCulture))
                 .Append(',')
-                .Append(track.DisplayArtist)
+                .Append(track.GetDisplayArtist(nameDisplay))
                 .Append(" - ")
-                .Append(track.DisplayTitle)
+                .Append(track.GetDisplayTitle(nameDisplay))
                 .AppendLine();
 
             builder.AppendLine(track.AudioFilePath);
@@ -32,7 +33,7 @@ public static class M3u8Exporter
         return builder.ToString();
     }
 
-    public static void Write(IEnumerable<MusicTrack> tracks, string path)
+    public static void Write(IEnumerable<MusicTrack> tracks, string path, TrackNameDisplay nameDisplay = TrackNameDisplay.Romanized)
     {
         string? directory = Path.GetDirectoryName(path);
 
@@ -41,6 +42,6 @@ public static class M3u8Exporter
             Directory.CreateDirectory(directory);
         }
 
-        File.WriteAllText(path, Build(tracks), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        File.WriteAllText(path, Build(tracks, nameDisplay), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
     }
 }

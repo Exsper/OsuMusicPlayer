@@ -80,9 +80,58 @@ public sealed partial class MainForm
         _settings.LastPlaylistId = entry.Id;
         ApplyFilter();
 
-        SetStatus(entry.Id == AllTracksId
-            ? $"已显示全部音乐（{_library.Tracks.Count} 首）。"
-            : $"已选择播放列表“{entry.Name}”，共 {entry.Count} 首。");
+        if (entry.Id == AllTracksId)
+        {
+            SetStatus($"已显示全部音乐（{_library.Tracks.Count} 首）。");
+            return;
+        }
+
+        int stale = CountStaleTracks(entry.Id);
+        string staleText = stale > 0 ? $"，其中 {stale} 条已不在音乐库中" : string.Empty;
+
+        SetStatus($"已选择播放列表“{entry.Name}”，共 {entry.Count} 首{staleText}。");
+    }
+
+    /// <summary>统计某个播放列表里已不在音乐库中的曲目数量。</summary>
+    private int CountStaleTracks(string playlistId) => _playlistStore.CountStaleEntries(playlistId, _library);
+
+    /// <summary>统计所有播放列表里已不在音乐库中的曲目总数。</summary>
+    private int CountStalePlaylistEntries(MusicLibrary library) => _playlistStore.CountStaleEntries(library);
+
+    /// <summary>
+    /// 用户显式确认后清理失效条目。扫描音乐库时不会自动清理，
+    /// 以免换了 osu! 目录后静默删掉播放列表内容。
+    /// </summary>
+    private void CleanUpStaleEntries()
+    {
+        int stale = CountStalePlaylistEntries(_library);
+
+        if (stale == 0)
+        {
+            ShowInformation("清理失效条目", "所有播放列表里的曲目都能在当前音乐库中找到。");
+            return;
+        }
+
+        DialogResult result = MessageBox.Show(
+            this,
+            $"当前音乐库中有 {stale} 条播放列表曲目已失效（对应的谱面/音频不在音乐库中）。"
+            + Environment.NewLine + Environment.NewLine
+            + "确定要把它们从播放列表中删除吗？" + Environment.NewLine
+            + "（只删除播放列表条目，不会删除任何音乐文件；如果之后换回原来的 osu! 目录，这些条目无法恢复）",
+            "清理失效条目",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Warning);
+
+        if (result != DialogResult.Yes)
+        {
+            return;
+        }
+
+        int removed = _playlistStore.Prune(_library);
+        PersistPlaylists();
+        RefreshPlaylistList();
+        ApplyFilter();
+        SetStatus($"已清理 {removed} 条失效的播放列表条目。");
     }
 
     private void SelectPlaylist(string playlistId)
