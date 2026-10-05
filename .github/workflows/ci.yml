@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  CONFIGURATION: Release
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore OsuMusicPlayer.sln
+
+      - name: Build solution
+        run: dotnet build OsuMusicPlayer.sln --configuration ${{ env.CONFIGURATION }} --no-restore
+
+      - name: Run tests
+        run: dotnet test OsuMusicPlayer.sln --configuration ${{ env.CONFIGURATION }} --no-build --verbosity normal
+
+      - name: Generate sample osu! folder and run self-test
+        shell: pwsh
+        run: |
+          dotnet run --project tools/OsuMusicPlayer.SampleData --configuration ${{ env.CONFIGURATION }} --no-build -- generate .testdata/sample-osu
+          ./src/OsuMusicPlayer.App/bin/Release/net9.0-windows/OsuMusicPlayer.exe --self-test --osu-dir .testdata/sample-osu
+
+      - name: Publish player
+        run: dotnet publish src/OsuMusicPlayer.App/OsuMusicPlayer.App.csproj --configuration ${{ env.CONFIGURATION }} --no-build
+
+      - name: Upload player artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OsuMusicPlayer
+          path: src/OsuMusicPlayer.App/bin/Release/net9.0-windows/publish/

@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>OsuMusicPlayer.SampleData</RootNamespace>
+    <AssemblyName>OsuMusicPlayer.SampleData</AssemblyName>
+    <Description>生成用于演示与自动化测试的假 osu! stable 文件夹（osu!.db、collection.db、Songs 音频与 .osu 文件）。</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\OsuMusicPlayer.Core\OsuMusicPlayer.Core.csproj" />
+  </ItemGroup>
+
+</Project>

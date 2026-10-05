@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>OsuMusicPlayer.App</RootNamespace>
+    <AssemblyName>OsuMusicPlayer</AssemblyName>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationVisualStyles>true</ApplicationVisualStyles>
+    <ApplicationUseCompatibleTextRendering>false</ApplicationUseCompatibleTextRendering>
+    <ApplicationDefaultFont>Microsoft YaHei UI, 9pt</ApplicationDefaultFont>
+    <Description>osu! stable 独立音乐播放器：合并同一谱面集的音乐、全库搜索、自定义播放列表、导入 osu! 收藏夹。</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OsuMusicPlayer.Core\OsuMusicPlayer.Core.csproj" />
+    <ProjectReference Include="..\OsuMusicPlayer.Audio\OsuMusicPlayer.Audio.csproj" />
+  </ItemGroup>
+
+</Project>

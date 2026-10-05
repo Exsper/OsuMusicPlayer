@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>OsuMusicPlayer.Core</RootNamespace>
+    <Description>osu! stable 音乐库解析（osu!.db / collection.db）、曲目合并、搜索、播放列表与播放控制。</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Win32.Registry" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="OsuMusicPlayer.Core.Tests" />
+  </ItemGroup>
+
+</Project>
