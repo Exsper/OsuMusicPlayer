@@ -378,8 +378,33 @@ public sealed partial class MainForm : Form
         return base.ProcessCmdKey(ref msg, keyData);
     }
 
+    /// <summary>
+    /// 判断当前是否正在编辑文本。
+    /// 注意：<see cref="Form.ActiveControl"/> 只返回窗口直属子控件（搜索框嵌在
+    /// 分隔容器 / TableLayoutPanel 里时得到的是容器），必须沿容器链找到真正的焦点控件，
+    /// 否则空格会被当成播放 / 暂停快捷键。
+    /// </summary>
     private bool IsTextInputFocused()
-        => ActiveControl is TextBoxBase || ActiveControl is ComboBox { DropDownStyle: ComboBoxStyle.DropDown };
+        => GetFocusedControl() is TextBoxBase or ComboBox { DropDownStyle: ComboBoxStyle.DropDown };
+
+    private Control? GetFocusedControl()
+    {
+        Control? control = ActiveControl;
+
+        while (control is IContainerControl container)
+        {
+            Control? next = container.ActiveControl;
+
+            if (next is null || ReferenceEquals(next, control))
+            {
+                break;
+            }
+
+            control = next;
+        }
+
+        return control;
+    }
 
     private void ShowAbout()
     {
